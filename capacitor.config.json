@@ -1,0 +1,14 @@
+{
+  "appId": "tricka4if.youtube",
+  "appName": "Trick A4IF YouTube",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": false,
+    "webContentsDebuggingEnabled": false
+  }
+}
