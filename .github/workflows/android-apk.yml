@@ -10,6 +10,10 @@ jobs:
   build-apk:
     runs-on: ubuntu-latest
 
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -25,8 +29,9 @@ jobs:
           distribution: "temurin"
           java-version: "17"
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Accept Android SDK licenses
+        run: |
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
 
       - name: Install npm dependencies
         run: |
@@ -49,21 +54,4 @@ jobs:
           fi
           if [ -f android-native/MainActivity.kt ]; then
             TARGET_ACTIVITY=$(find android/app/src/main -name "MainActivity.kt" | head -n 1)
-            if [ -n "$TARGET_ACTIVITY" ]; then
-              cp android-native/MainActivity.kt "$TARGET_ACTIVITY"
-            fi
-          fi
-          npx cap sync android
-
-      - name: Assemble Debug APK
-        run: |
-          cd android
-          chmod +x gradlew
-          ./gradlew assembleDebug
-
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: trick-a4if-youtube-debug-apk
-          path: android/app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
+            if [ -n "$TARGET
