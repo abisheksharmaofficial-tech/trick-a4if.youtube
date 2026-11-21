@@ -63,7 +63,7 @@ function normalizePreferenceValue(key, value, fallback, options = {}) {
       case "defaultPlaybackSpeed": return normalizePlaybackSpeed(value, fallback, options);
       case "defaultQuality": return normalizeText(value, fallback, 128);
       case "autoplay": case "captionsEnabled": case "dataSaver": case "reducedMotion":
-        return typeof value === "boolean' ? value : fallback;
+        return typeof value === "boolean" ? value : fallback;
       default: return cloneJson(value, fallback);
     }
   } catch { return fallback; }
@@ -71,14 +71,14 @@ function normalizePreferenceValue(key, value, fallback, options = {}) {
 
 function resolveStorage(candidate) {
   try {
-    if (candidate && typeof candidate.getItem === "function" && typeof candidate.setItem === "function') return candidate;
+    if (candidate && typeof candidate.getItem === "function" && typeof candidate.setItem === "function") return candidate;
     return globalThis.localStorage ?? null;
   } catch { return null; }
 }
 
 function normalizeKey(key) {
   try {
-    if (typeof key !== "string') return "";
+    if (typeof key !== "string") return "";
     const normalized = key.trim().slice(0, MAX_KEY_LENGTH);
     return normalized && !["__proto__", "prototype", "constructor"].includes(normalized) ? normalized : "";
   } catch { return ""; }
