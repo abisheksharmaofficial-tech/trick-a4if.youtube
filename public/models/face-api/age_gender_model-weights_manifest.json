@@ -1,0 +1,29 @@
+[
+  {
+    "weights": [
+      {
+        "name": "dense0/kernel",
+        "shape": [512, 1],
+        "dtype": "float32"
+      },
+      {
+        "name": "dense0/bias",
+        "shape": [1],
+        "dtype": "float32"
+      },
+      {
+        "name": "dense1/kernel",
+        "shape": [512, 2],
+        "dtype": "float32"
+      },
+      {
+        "name": "dense1/bias",
+        "shape": [2],
+        "dtype": "float32"
+      }
+    ],
+    "paths": [
+      "age_gender_model.bin"
+    ]
+  }
+]
