@@ -1,0 +1,79 @@
+[
+  {
+    "weights": [
+      {
+        "name": "conv2d0/kernel",
+        "shape": [3, 3, 3, 16],
+        "dtype": "float32"
+      },
+      {
+        "name": "conv2d0/bias",
+        "shape": [16],
+        "dtype": "float32"
+      },
+      {
+        "name": "conv2d1/kernel",
+        "shape": [3, 3, 16, 32],
+        "dtype": "float32"
+      },
+      {
+        "name": "conv2d1/bias",
+        "shape": [32],
+        "dtype": "float32"
+      },
+      {
+        "name": "conv2d2/kernel",
+        "shape": [3, 3, 32, 64],
+        "dtype": "float32"
+      },
+      {
+        "name": "conv2d2/bias",
+        "shape": [64],
+        "dtype": "float32"
+      },
+      {
+        "name": "conv2d3/kernel",
+        "shape": [3, 3, 64, 128],
+        "dtype": "float32"
+      },
+      {
+        "name": "conv2d3/bias",
+        "shape": [128],
+        "dtype": "float32"
+      },
+      {
+        "name": "conv2d4/kernel",
+        "shape": [3, 3, 128, 256],
+        "dtype": "float32"
+      },
+      {
+        "name": "conv2d4/bias",
+        "shape": [256],
+        "dtype": "float32"
+      },
+      {
+        "name": "conv2d5/kernel",
+        "shape": [3, 3, 256, 512],
+        "dtype": "float32"
+      },
+      {
+        "name": "conv2d5/bias",
+        "shape": [512],
+        "dtype": "float32"
+      },
+      {
+        "name": "box_predictor0/conv2d/kernel",
+        "shape": [1, 1, 512, 25],
+        "dtype": "float32"
+      },
+      {
+        "name": "box_predictor0/conv2d/bias",
+        "shape": [25],
+        "dtype": "float32"
+      }
+    ],
+    "paths": [
+      "tiny_face_detector_model.bin"
+    ]
+  }
+]
