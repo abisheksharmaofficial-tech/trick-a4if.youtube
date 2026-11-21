@@ -11,7 +11,7 @@
     "cap:sync": "npx cap sync"
   },
   "dependencies": {
-    "@capacitor/android": "^5.7.8",
+    "@capacitor/android": "^8.6.2",
     "@capacitor/core": "^5.7.8",
     "@vladmandic/face-api": "^1.7.15",
     "firebase": "^10.14.1",
