@@ -1,0 +1,69 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup Java (JDK 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install npm dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Build web assets
+        run: npm run build
+
+      - name: Prepare Capacitor Android project
+        run: |
+          if [ ! -d android ]; then
+            npx cap add android
+          fi
+          if [ -f scripts/configure-android-build.js ]; then
+            node scripts/configure-android-build.js || true
+          fi
+          if [ -f android-native/MainActivity.kt ]; then
+            TARGET_ACTIVITY=$(find android/app/src/main -name "MainActivity.kt" | head -n 1)
+            if [ -n "$TARGET_ACTIVITY" ]; then
+              cp android-native/MainActivity.kt "$TARGET_ACTIVITY"
+            fi
+          fi
+          npx cap sync android
+
+      - name: Assemble Debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trick-a4if-youtube-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
