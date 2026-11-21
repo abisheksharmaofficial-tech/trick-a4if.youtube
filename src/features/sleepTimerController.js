@@ -65,7 +65,7 @@ export class SleepTimerController {
       this.videoElement = settings.videoElement ?? settings.video ?? null;
       this.onTick = typeof settings.onTick === "function" ? settings.onTick : null;
       this.onExpire = typeof settings.onExpire === "function" ? settings.onExpire
-        : (typeof settings.onExpired === "function' ? settings.onExpired : null);
+        : (typeof settings.onExpired === "function" ? settings.onExpired : null);
       this.onPause = typeof settings.onPause === "function" ? settings.onPause : null;
       this.onStop = typeof settings.onStop === "function" ? settings.onStop : null;
       this.onStateChange = typeof settings.onStateChange === "function" ? settings.onStateChange : null;
