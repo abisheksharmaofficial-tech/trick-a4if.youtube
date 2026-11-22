@@ -1,5 +1,6 @@
 const DEFAULT_COUNTDOWN_SECONDS = 10;
 const DEFAULT_TICK_INTERVAL_MS = 250;
+const MIN_TICK_INTERVAL_MS = 50;
 const DEFAULT_STORAGE_KEY = "trick-a4if-tube:autoplay-next:v1";
 const memoryStorage = new Map();
 const EVENTS = Object.freeze(["statechange", "tick", "trigger", "error"]);
@@ -25,6 +26,16 @@ function normalizePositive(value, fallback) {
   try {
     const number = Number(value);
     return Number.isFinite(number) && number > 0 ? number : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function normalizeTickIntervalMs(value, fallback = DEFAULT_TICK_INTERVAL_MS) {
+  try {
+    if (typeof value === "boolean" || value === null || value === "") return fallback;
+    const ms = normalizePositive(value, fallback);
+    return Math.max(MIN_TICK_INTERVAL_MS, Math.round(ms));
   } catch {
     return fallback;
   }
@@ -68,9 +79,9 @@ export class AutoplayNextController {
       settings.countdownSeconds ?? settings.durationSeconds,
       DEFAULT_COUNTDOWN_SECONDS,
     );
-    this.tickIntervalMs = Math.max(
-      50,
-      normalizePositive(settings.tickIntervalMs, DEFAULT_TICK_INTERVAL_MS),
+    this.tickIntervalMs = normalizeTickIntervalMs(
+      settings.tickIntervalMs,
+      DEFAULT_TICK_INTERVAL_MS,
     );
     this.storage = resolveStorage(settings.storage);
     this.storageKey = normalizeText(settings.storageKey, DEFAULT_STORAGE_KEY);
@@ -84,7 +95,7 @@ export class AutoplayNextController {
     this.onTrigger = typeof settings.onTrigger === "function" ? settings.onTrigger : null;
     this.onError = typeof settings.onError === "function" ? settings.onError : null;
 
-    this.enabled = settings.enabled === true;
+    this.enabled = false;
     this.state = "idle";
     this.remainingSeconds = this.countdownSeconds;
     this.lastError = null;
@@ -95,8 +106,13 @@ export class AutoplayNextController {
     this._timerId = null;
     this._listeners = new Map(EVENTS.map((event) => [event, new Set()]));
 
-    this._loadPreference();
-    if (this.enabled) this._persistPreference();
+    const loadedEnabled = this._loadPreference();
+    if (typeof settings.enabled === "boolean") {
+      this.enabled = settings.enabled;
+    } else if (typeof loadedEnabled === "boolean") {
+      this.enabled = loadedEnabled;
+    }
+    this._persistPreference();
   }
 
   /** Enable or disable autoplay-next. Disabling cancels an active countdown. */
@@ -451,14 +467,17 @@ export class AutoplayNextController {
       let raw = null;
       if (this.storage) raw = this.storage.getItem(this.storageKey);
       if (raw === null || raw === undefined) raw = memoryStorage.get(this.storageKey) ?? null;
-      if (raw === null) return;
+      if (raw === null) return null;
 
       const preference = JSON.parse(raw);
       if (isRecord(preference) && typeof preference.enabled === "boolean") {
         this.enabled = preference.enabled;
+        return preference.enabled;
       }
+      return null;
     } catch (error) {
       this._reportError(error);
+      return null;
     }
   }
 
