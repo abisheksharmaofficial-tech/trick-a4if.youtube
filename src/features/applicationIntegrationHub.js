@@ -225,7 +225,10 @@ export class ApplicationIntegrationHub {
       const descriptor = input.instance !== undefined ? input : { ...input, instance: input.module ?? input.feature };
       const registered = this.registry.register(descriptor, options);
       if (!registered) return null;
-      this._notify("module-registered", { moduleName: registered.name });
+      const moduleName = normalizeText(isRecord(registered) ? registered.name : "", 512)
+        || normalizeText(descriptor.name ?? input.name, 512)
+        || null;
+      this._notify("module-registered", { moduleName });
       return registered;
     } catch (error) { this._reportError(error, input?.name); return null; }
   }
