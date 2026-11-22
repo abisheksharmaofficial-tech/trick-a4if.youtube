@@ -7,11 +7,23 @@ const DEFAULT_PRESETS = Object.freeze({
   60: 60 * 60,
 });
 const DEFAULT_TICK_INTERVAL_MS = 1000;
+const MIN_TICK_INTERVAL_MS = 50;
 
 function normalizeSeconds(value, fallback = 0) {
   try {
     const seconds = Number(value);
     return Number.isFinite(seconds) && seconds >= 0 ? seconds : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function normalizeMilliseconds(value, fallback = DEFAULT_TICK_INTERVAL_MS) {
+  try {
+    if (typeof value === "boolean" || value === null || value === "") return fallback;
+    const ms = Number(value);
+    if (!Number.isFinite(ms) || ms <= 0) return fallback;
+    return Math.max(MIN_TICK_INTERVAL_MS, Math.round(ms));
   } catch {
     return fallback;
   }
@@ -41,7 +53,7 @@ export class SmartSleepTimer {
   constructor(options = {}) {
     const settings = options && typeof options === "object" ? options : {};
     this.presets = Object.freeze(normalizePresets(settings.presets));
-    this.tickIntervalMs = Math.max(50, normalizeSeconds(settings.tickIntervalMs, DEFAULT_TICK_INTERVAL_MS));
+    this.tickIntervalMs = normalizeMilliseconds(settings.tickIntervalMs, DEFAULT_TICK_INTERVAL_MS);
     this.endOfCurrentVideo = Boolean(settings.endOfCurrentVideo ?? settings.completeCurrentVideo);
     this.videoElement = settings.videoElement ?? settings.video ?? null;
     this.onTick = typeof settings.onTick === "function" ? settings.onTick : null;
