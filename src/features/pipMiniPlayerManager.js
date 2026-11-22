@@ -36,7 +36,7 @@ export class PipMiniPlayerManager {
     this.video = settings.videoElement ?? settings.video ?? null;
     this.document = settings.document ?? this.video?.ownerDocument ?? globalThis.document ?? null;
     this.window = settings.window ?? this.document?.defaultView ?? globalThis.window ?? null;
-    this.container = settings.container ?? this.document?.body ?? null;
+    this.container = isElement(settings.container) ? settings.container : (this.document?.body ?? null);
     this.modePreference = settings.mode === "fallback" ? "fallback" : "native";
     this.autoMiniPlayer = settings.autoMiniPlayer === true || settings.autoMiniPlayerOnScroll === true;
     this.visibilityThreshold = this._normalizeThreshold(settings.visibilityThreshold);
@@ -54,6 +54,7 @@ export class PipMiniPlayerManager {
     this._placeholder = null;
     this._originalParent = null;
     this._originalNextSibling = null;
+    this._originalVideoStyle = null;
     this._observer = null;
     this._boundEnterPiP = () => this._handleNativeOpen();
     this._boundLeavePiP = () => this._handleNativeClose();
@@ -186,13 +187,24 @@ export class PipMiniPlayerManager {
   _openFallback(reason = "api") {
     try {
       if (this.isDestroyed || !this.video || !this.document || !this.container
-        || typeof this.document.createElement !== "function") return false;
+        || typeof this.document.createElement !== "function"
+        || typeof this.container.appendChild !== "function") return false;
       if (this.isOpen) return true;
       const parent = this.video.parentNode;
       if (!parent || typeof parent.insertBefore !== "function") return false;
 
-      const placeholder = this.document.createComment("pip-mini-player-video-position");
-      parent.insertBefore(placeholder, this.video);
+      this._originalParent = parent;
+      this._originalNextSibling = this.video.nextSibling;
+      this._originalVideoStyle = this.video.style?.cssText ?? null;
+
+      const placeholder = typeof this.document.createComment === "function"
+        ? this.document.createComment("pip-mini-player-video-position")
+        : null;
+      if (placeholder) {
+        parent.insertBefore(placeholder, this.video);
+        this._placeholder = placeholder;
+      }
+
       const root = this.document.createElement("div");
       root.className = "pip-mini-player";
       root.setAttribute("data-pip-mini-player", "true");
@@ -215,14 +227,15 @@ export class PipMiniPlayerManager {
       controls.append(restoreButton, closeButton);
       root.appendChild(controls);
 
-      this._originalParent = parent;
-      this._originalNextSibling = this.video.nextSibling;
-      this._placeholder = placeholder;
       this._fallbackRoot = root;
       this._applyDockStyles();
       this.container.appendChild(root);
       root.appendChild(this.video);
-      Object.assign(this.video.style, { display: "block", width: "100%", height: "auto", maxHeight: "calc(100vh - 24px)" });
+      if (this.video.style) {
+        Object.assign(this.video.style, {
+          display: "block", width: "100%", height: "auto", maxHeight: "calc(100vh - 24px)",
+        });
+      }
       this.isOpen = true;
       this._setMode("fallback", { reason });
       this._emit("open", { mode: this.mode, reason });
@@ -389,25 +402,58 @@ export class PipMiniPlayerManager {
     try {
       const video = this.video;
       const placeholder = this._placeholder;
-      const parent = placeholder?.parentNode ?? this._originalParent;
-      if (video && parent && typeof parent.insertBefore === "function" && video.parentNode !== parent) {
-        const reference = placeholder?.parentNode === parent ? placeholder : this._originalNextSibling;
-        parent.insertBefore(video, reference?.parentNode === parent ? reference : null);
+      const placeholderParent = placeholder?.parentNode ?? null;
+      const parent = placeholderParent ?? this._originalParent;
+      const canInsert = Boolean(video && parent && typeof parent.insertBefore === "function");
+
+      if (canInsert && video.parentNode !== parent) {
+        let reference = null;
+        if (placeholderParent === parent) {
+          reference = placeholder;
+        } else if (this._originalNextSibling && this._originalNextSibling.parentNode === parent) {
+          reference = this._originalNextSibling;
+        }
+        try {
+          parent.insertBefore(video, reference);
+        } catch {
+          if (reference !== null) parent.insertBefore(video, null);
+        }
       }
-      if (placeholder?.parentNode) placeholder.parentNode.removeChild(placeholder);
+
+      if (video && this._originalVideoStyle !== null && video.style) {
+        video.style.cssText = this._originalVideoStyle;
+      }
+
+      if (placeholderParent && typeof placeholderParent.removeChild === "function") {
+        placeholderParent.removeChild(placeholder);
+      }
       this._placeholder = null;
       this._originalParent = null;
       this._originalNextSibling = null;
+      this._originalVideoStyle = null;
       return true;
-    } catch (error) { this._reportError(error); return false; }
+    } catch (error) {
+      this._placeholder = null;
+      this._originalParent = null;
+      this._originalNextSibling = null;
+      this._originalVideoStyle = null;
+      this._reportError(error);
+      return false;
+    }
   }
 
   _removeFallbackRoot() {
     try {
-      if (this._fallbackRoot?.parentNode) this._fallbackRoot.parentNode.removeChild(this._fallbackRoot);
+      if (this._fallbackRoot?.parentNode && typeof this._fallbackRoot.parentNode.removeChild === "function") {
+        this._fallbackRoot.parentNode.removeChild(this._fallbackRoot);
+      }
       this._fallbackRoot = null;
       return true;
-    } catch (error) { this._reportError(error); return false; }
+    } catch (error) {
+      this._fallbackRoot = null;
+      this._reportError(error);
+      return false;
+    }
   }
 
   _handleFullscreenChange() {
