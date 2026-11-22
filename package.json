@@ -14,7 +14,7 @@
     "@capacitor/android": "^5.7.8",
     "@capacitor/core": "^5.7.8",
     "@vladmandic/face-api": "^1.7.15",
-    "firebase": "^10.14.1",
+    "firebase": "^13.4.0",
     "lucide-react": "^0.468.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
