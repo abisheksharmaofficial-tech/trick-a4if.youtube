@@ -31,7 +31,19 @@ jobs:
 
       - name: Accept Android SDK licenses
         run: |
-          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          set -e
+          SDKMANAGER_BIN=""
+          if command -v sdkmanager >/dev/null 2>&1; then
+            SDKMANAGER_BIN="sdkmanager"
+          elif [ -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
+            SDKMANAGER_BIN="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          elif [ -x "$ANDROID_HOME/tools/bin/sdkmanager" ]; then
+            SDKMANAGER_BIN="$ANDROID_HOME/tools/bin/sdkmanager"
+          fi
+
+          if [ -n "$SDKMANAGER_BIN" ]; then
+            yes | "$SDKMANAGER_BIN" --sdk_root="$ANDROID_HOME" --licenses >/dev/null 2>&1 || true
+          fi
 
       - name: Install npm dependencies
         run: |
@@ -46,22 +58,30 @@ jobs:
 
       - name: Prepare Capacitor Android project
         run: |
+          set -e
           if [ ! -d android ]; then
             npx cap add android
           fi
           if [ -f scripts/configure-android-build.js ]; then
-            node scripts/configure-android-build.js || true
+            node scripts/configure-android-build.js
           fi
           if [ -f android-native/MainActivity.kt ]; then
-            TARGET_ACTIVITY=$(find android/app/src/main -name "MainActivity.kt" | head -n 1)
-            if [ -n "$TARGET_ACTIVITY" ]; then
-              cp android-native/MainActivity.kt "$TARGET_ACTIVITY"
+            TARGET_ACTIVITY=$(find android/app/src/main -name "MainActivity.kt" | head -n 1 || true)
+            if [ -z "$TARGET_ACTIVITY" ]; then
+              if [ -d android/app/src/main/kotlin ]; then
+                TARGET_ACTIVITY="android/app/src/main/kotlin/tricka4if/youtube/MainActivity.kt"
+              else
+                TARGET_ACTIVITY="android/app/src/main/java/tricka4if/youtube/MainActivity.kt"
+              fi
+              mkdir -p "$(dirname "$TARGET_ACTIVITY")"
             fi
+            cp android-native/MainActivity.kt "$TARGET_ACTIVITY"
           fi
           npx cap sync android
 
       - name: Assemble Debug APK
         run: |
+          set -e
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug
