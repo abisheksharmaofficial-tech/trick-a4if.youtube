@@ -1,7 +1,6 @@
 const STORAGE_KEY = "trick-a4if-tube:data-usage";
 const NETWORK_TYPES = Object.freeze(["wifi", "cellular", "ethernet", "unknown"]);
 const DEFAULT_WARNING_THRESHOLDS = Object.freeze([0.5, 0.8, 0.95]);
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 function isRecord(value) {
   try { return value !== null && typeof value === "object" && !Array.isArray(value); }
@@ -28,7 +27,24 @@ function normalizeNetworkType(value) {
   } catch { return "unknown"; }
 }
 
-function normalizeDateKey(value, fallback = new Date().toISOString().slice(0, 10)) {
+function todayUtcDateKey() {
+  try { return new Date().toISOString().slice(0, 10); }
+  catch { return "1970-01-01"; }
+}
+
+function dateKeyFromTimestamp(timestamp) {
+  try {
+    const candidate = nonNegative(timestamp, Date.now());
+    const date = new Date(candidate ?? Date.now());
+    if (!Number.isFinite(date.getTime())) return todayUtcDateKey();
+    const iso = date.toISOString();
+    return typeof iso === "string" && iso.length >= 10 ? iso.slice(0, 10) : todayUtcDateKey();
+  } catch {
+    return todayUtcDateKey();
+  }
+}
+
+function normalizeDateKey(value, fallback = todayUtcDateKey()) {
   try {
     const text = normalizeText(value, 32);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return fallback;
@@ -172,7 +188,7 @@ export class DataUsageTracker {
 
   _snapshot() {
     try {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = todayUtcDateKey();
       return Object.freeze({
         dataCapBytes: this.dataCapBytes,
         sessionStartedAt: this.sessionStartedAt,
@@ -215,7 +231,7 @@ export class DataUsageTracker {
       const videoId = normalizeText(entry.videoId ?? entry.video ?? entry.id, 512);
       const category = normalizeText(entry.category, 512);
       const timestamp = nonNegative(entry.timestamp, Date.now());
-      const day = normalizeDateKey(new Date(timestamp).toISOString().slice(0, 10));
+      const day = normalizeDateKey(dateKeyFromTimestamp(timestamp));
       const daily = this._daily[day] ?? (this._daily[day] = createCounters());
       this._increment(this._session, bytes, networkType, videoId, category);
       this._increment(daily, bytes, networkType, videoId, category);
@@ -312,26 +328,34 @@ export class DataUsageTracker {
     try {
       if (this.isDestroyed) return false;
       const target = normalizeText(scope, 32).toLowerCase();
-      if (target === "session" || target === "all") this._session = createCounters();
-      if (target === "daily" || target === "today" || target === "all") {
-        if (isRecord(options) && options.date) {
-          delete this._daily[normalizeDateKey(options.date)];
-        } else if (target === "all" || target === "daily") {
-          this._daily = Object.create(null);
-        } else {
-          delete this._daily[new Date().toISOString().slice(0, 10)];
-        }
+      const validScopes = ["session", "daily", "today", "all-daily", "alltime", "all-time", "all"];
+      if (!validScopes.includes(target)) return false;
+
+      if (target === "session" || target === "all") {
+        this._session = createCounters();
       }
-      if (target === "alltime" || target === "all-time" || target === "all") this._allTime = createCounters();
-      if (!["session", "daily", "today", "alltime", "all-time", "all"].includes(target)) return false;
+      if (target === "today") {
+        delete this._daily[todayUtcDateKey()];
+      } else if (target === "daily") {
+        const day = isRecord(options) && options.date !== undefined
+          ? normalizeDateKey(options.date)
+          : todayUtcDateKey();
+        delete this._daily[day];
+      } else if (target === "all-daily" || target === "all") {
+        this._daily = Object.create(null);
+      }
+      if (target === "alltime" || target === "all-time" || target === "all") {
+        this._allTime = createCounters();
+      }
+
       this._persist();
-      this._notify("reset", { scope: target, date: options?.date ?? null });
+      this._notify("reset", { scope: target, date: isRecord(options) ? (options.date ?? null) : null });
       return true;
     } catch (error) { this._reportError(error); return false; }
   }
 
   resetSession() { return this.reset("session"); }
-  resetDaily(date) { return this.reset("daily", date ? { date } : {}); }
+  resetDaily(date) { return this.reset("daily", date !== undefined ? { date } : {}); }
   resetAll() { return this.reset("all"); }
 
   exportData() {
