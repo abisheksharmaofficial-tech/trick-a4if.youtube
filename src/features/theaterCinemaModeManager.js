@@ -35,7 +35,7 @@ function resolveDocument(candidate) {
   try {
     if (candidate && typeof candidate.addEventListener === "function"
       && typeof candidate.removeEventListener === "function") return candidate;
-    return typeof globalThis.document !== "undefined' ? globalThis.document : null;
+    return typeof globalThis.document !== "undefined" ? globalThis.document : null;
   } catch {
     return null;
   }

@@ -500,13 +500,17 @@ export class GestureAirControl {
   }
 
   _resetTracking() {
-    this._previousMotionCenter = null;
-    this._horizontalMotion = 0;
-    this._verticalMotion = 0;
-    this._horizontalDirectionChanges = 0;
-    this._lastHorizontalDirection = 0;
-    this._candidateDirection = 0;
-    this._candidateStart = null;
+    try {
+      this._previousMotionCenter = null;
+      this._horizontalMotion = 0;
+      this._verticalMotion = 0;
+      this._horizontalDirectionChanges = 0;
+      this._lastHorizontalDirection = 0;
+      this._candidateDirection = 0;
+      this._candidateStart = null;
+    } catch (error) {
+      this._reportError(error);
+    }
   }
 
   _validTimestamp(value) {

@@ -50,13 +50,7 @@ jobs:
             npx cap add android
           fi
           if [ -f scripts/configure-android-build.js ]; then
-            node scripts/configure-android-build.js || true
-          fi
-          if [ -f android-native/MainActivity.kt ]; then
-            TARGET_ACTIVITY=$(find android/app/src/main -name "MainActivity.kt" | head -n 1)
-            if [ -n "$TARGET_ACTIVITY" ]; then
-              cp android-native/MainActivity.kt "$TARGET_ACTIVITY"
-            fi
+            node scripts/configure-android-build.js
           fi
           npx cap sync android
 
