@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 
@@ -19,7 +19,23 @@ function readJson(path, label) {
   try {
     return JSON.parse(readFileSync(path, "utf8"));
   } catch (error) {
-    throw new Error(`${label} could not be read as valid JSON (${error.message}).`);
+    throw new Error(`${label} could not be read as valid JSON (${error instanceof Error ? error.message : String(error)}).`);
+  }
+}
+
+function runCap(cliPath, args) {
+  const result = spawnSync(cliPath, args, {
+    cwd: projectRoot,
+    stdio: "inherit",
+    shell: process.platform === "win32",
+    env: process.env,
+  });
+
+  if (result.error) {
+    throw new Error(`Capacitor ${args.join(" ")} failed to start (${result.error.message}).`);
+  }
+  if (result.status !== 0) {
+    throw new Error(`Capacitor ${args.join(" ")} exited with status ${result.status ?? "unknown"}.`);
   }
 }
 
@@ -47,7 +63,9 @@ function run() {
     if (config.server?.url) {
       throw new Error("server.url must not be set for a production build; configure a local dev server only when needed.");
     }
-    if (!packageJson.dependencies?.["@capacitor/android"] || !packageJson.devDependencies?.["@capacitor/cli"]) {
+    const hasCapAndroid = Boolean(packageJson.dependencies?.["@capacitor/android"] || packageJson.devDependencies?.["@capacitor/android"]);
+    const hasCapCli = Boolean(packageJson.devDependencies?.["@capacitor/cli"] || packageJson.dependencies?.["@capacitor/cli"]);
+    if (!hasCapAndroid || !hasCapCli) {
       throw new Error("package.json must declare @capacitor/android and @capacitor/cli dependencies.");
     }
 
@@ -58,26 +76,23 @@ function run() {
     }
 
     const webRoot = resolve(projectRoot, config.webDir);
-    if (!webRoot.startsWith(`${projectRoot}${process.platform === "win32" ? "\\" : "/"}`) || !existsSync(join(webRoot, "index.html"))) {
+    const normalizedRoot = projectRoot.endsWith(sep) ? projectRoot : `${projectRoot}${sep}`;
+    if (!webRoot.startsWith(normalizedRoot) || !existsSync(join(webRoot, "index.html"))) {
       throw new Error(`${config.webDir}/index.html is missing; build the web application before configuring Android.`);
     }
 
     const cliPath = join(projectRoot, "node_modules", ".bin", process.platform === "win32" ? "cap.cmd" : "cap");
-    if (!existsSync(cliPath)) throw new Error("Local Capacitor CLI is not installed; run npm ci first.");
+    if (!existsSync(cliPath)) throw new Error("Local Capacitor CLI is not installed; run npm install or npm ci first.");
 
     const androidProjectExists = existsSync(join(projectRoot, "android", "settings.gradle"))
       || existsSync(join(projectRoot, "android", "settings.gradle.kts"));
-    const command = androidProjectExists ? "sync" : "add";
-    const result = spawnSync(cliPath, [command, "android"], {
-      cwd: projectRoot,
-      stdio: "inherit",
-      shell: process.platform === "win32",
-      env: process.env,
-    });
 
-    if (result.error) throw new Error(`Capacitor ${command} failed to start (${result.error.message}).`);
-    if (result.status !== 0) throw new Error(`Capacitor ${command} android exited with status ${result.status ?? "unknown"}.`);
-    console.log(`Android project ${command === "add" ? "created" : "synchronized"} successfully for ${appId}.`);
+    if (!androidProjectExists) {
+      runCap(cliPath, ["add", "android"]);
+    }
+    runCap(cliPath, ["sync", "android"]);
+
+    console.log(`Android project ${androidProjectExists ? "synchronized" : "created and synchronized"} successfully for ${appId}.`);
   } catch (error) {
     fail(error instanceof Error ? error.message : "An unexpected error occurred.");
   }
