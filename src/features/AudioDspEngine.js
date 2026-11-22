@@ -310,11 +310,7 @@ export class AudioDspEngine {
 
       return this._filters.every((filter, index) => {
         const base = bands[BAND_NAMES[index]] ?? 0;
-        let gain = base + offsets[index];
-        if (index === 0) gain += bass;
-        if (index === 5) gain += treble;
-        if (index === 3) gain += vocal;
-        gain = clamp(gain, -MAX_COMBINED_GAIN_DB, MAX_COMBINED_GAIN_DB);
+        const gain = clamp(base + offsets[index], -MAX_COMBINED_GAIN_DB, MAX_COMBINED_GAIN_DB);
         return setParam(filter.gain, gain, this.context);
       });
     } catch (error) {
