@@ -159,6 +159,7 @@ function EmptyState({ children }) {
 function AppContents({ videos: suppliedVideos }) {
   const videoElement = useRef(null);
   const managerRef = useRef(null);
+  const selectedVideoRef = useRef(null);
   const unsubscribeRef = useRef([]);
   const [managers, setManagers] = useState(null);
   const [query, setQuery] = useState("");
@@ -185,6 +186,10 @@ function AppContents({ videos: suppliedVideos }) {
   const [playlistName, setPlaylistName] = useState("");
 
   useEffect(() => {
+    selectedVideoRef.current = selectedVideo;
+  }, [selectedVideo]);
+
+  useEffect(() => {
     let mounted = true;
     const unsubscribers = [];
     let created;
@@ -198,7 +203,13 @@ function AppContents({ videos: suppliedVideos }) {
       const playlistManager = new PlaylistCollectionManager({ onChange: () => { if (mounted) setPlaylists([...playlistManager.getPlaylists()]); }, onError: (error) => reportError(error, telemetry) });
       const preferences = new UserPreferenceProfileManager({ onChange: () => { if (mounted) setPreferenceState(preferences.getPreferences()); }, onError: (error) => reportError(error, telemetry) });
       const safety = new ContentFilterSafetyGuard({ mode: "safety", onChange: () => { if (mounted) setSafetyMode(safety.mode); }, onError: (error) => reportError(error, telemetry) });
-      const chapterManager = new VideoChapterManager({ onChange: () => { if (mounted && selectedVideo) setChapters([...chapterManager.getChapters(videoId(selectedVideo))]); }, onError: (error) => reportError(error, telemetry) });
+      const chapterManager = new VideoChapterManager({
+        onChange: () => {
+          const activeId = videoId(selectedVideoRef.current);
+          if (mounted && activeId) setChapters([...chapterManager.getChapters(activeId)]);
+        },
+        onError: (error) => reportError(error, telemetry),
+      });
       const bookmarkManager = new BookmarkTimestampManager({ onChange: () => { if (mounted) setBookmarks([...bookmarkManager.getBookmarks()]); }, onError: (error) => reportError(error, telemetry) });
       const sleepTimer = new SleepTimerController({ onTick: (state) => { if (mounted) setTimerState(state); }, onError: (error) => reportError(error, telemetry) });
       const miniFeed = new MiniFeedNotificationManager({ onChange: () => { if (mounted) setNotifications([...miniFeed.getNotifications()]); }, onError: (error) => reportError(error, telemetry) });
@@ -214,8 +225,9 @@ function AppContents({ videos: suppliedVideos }) {
         playlistManager.subscribe(() => { if (mounted) setPlaylists([...playlistManager.getPlaylists()]); }),
         bookmarkManager.subscribe(() => { if (mounted) setBookmarks([...bookmarkManager.getBookmarks()]); }),
         chapterManager.subscribe(() => {
-          const active = selectedVideo;
-          if (mounted && active) setChapters([...chapterManager.getChapters(videoId(active))]);
+          const activeId = videoId(selectedVideoRef.current);
+          if (mounted && activeId) setChapters([...chapterManager.getChapters(activeId)]);
+          else if (mounted) setChapters([]);
         }),
         sleepTimer.subscribe((state) => { if (mounted) setTimerState(state); }),
         miniFeed.subscribe(() => { if (mounted) setNotifications([...miniFeed.getNotifications()]); }),
@@ -259,8 +271,6 @@ function AppContents({ videos: suppliedVideos }) {
         try { activeManagers.registry?.destroy?.(); } catch { /* Continue teardown. */ }
       }
     };
-    // Managers are mounted once; selected-video state is read by dedicated effects below.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -270,9 +280,15 @@ function AppContents({ videos: suppliedVideos }) {
   }, [preferenceState]);
 
   useEffect(() => {
-    if (!selectedVideo || !managers) return;
+    if (!selectedVideo || !managers) {
+      setChapters([]);
+      return;
+    }
     const id = videoId(selectedVideo);
-    if (!id) return;
+    if (!id) {
+      setChapters([]);
+      return;
+    }
     try {
       managers.chapterManager.setChapters(id, selectedVideo.chapters ?? [], { totalDuration: selectedVideo.durationSeconds ?? selectedVideo.duration });
       setChapters([...managers.chapterManager.getChapters(id)]);
@@ -338,13 +354,13 @@ function AppContents({ videos: suppliedVideos }) {
 
   const recordProgress = useCallback(() => {
     try {
-      const video = selectedVideo;
+      const video = selectedVideoRef.current;
       if (!video) return;
       const manager = managerRef.current;
       manager?.watchHistory?.update(video, { position: playbackTime, duration });
       void recordWatchHistory({ ...video, position: playbackTime, duration }).catch(() => {});
     } catch { /* Playback progress is best-effort local history. */ }
-  }, [selectedVideo, playbackTime, duration]);
+  }, [playbackTime, duration]);
 
   const toggleSubscription = async (channelName, channelId) => {
     try {
@@ -354,28 +370,40 @@ function AppContents({ videos: suppliedVideos }) {
   };
 
   const createPlaylist = (event) => {
-    event.preventDefault();
-    const name = playlistName.trim();
-    if (!name || !managers) return;
-    const playlist = managers.playlistManager.createPlaylist({ name });
-    if (playlist && selectedVideo) managers.playlistManager.addItem(playlist.id, selectedVideo);
-    setPlaylistName("");
+    try {
+      event.preventDefault();
+      const name = playlistName.trim();
+      if (!name || !managers) return;
+      const playlist = managers.playlistManager.createPlaylist({ name });
+      if (playlist && selectedVideo) managers.playlistManager.addItem(playlist.id, selectedVideo);
+      setPlaylistName("");
+    } catch (error) {
+      try { managers?.telemetry?.capture(error, { source: "create playlist" }); } catch { /* No-op. */ }
+    }
   };
 
   const addBookmark = () => {
-    if (!selectedVideo || !managers) return;
-    const bookmark = managers.bookmarkManager.createBookmark({
-      videoId: videoId(selectedVideo), timeSeconds: playbackTime, label: `${videoTitle(selectedVideo)} · ${formatTime(playbackTime)}`,
-    });
-    if (bookmark) setStatusMessage(`Bookmark added at ${formatTime(playbackTime)}.`);
+    try {
+      if (!selectedVideo || !managers) return;
+      const bookmark = managers.bookmarkManager.createBookmark({
+        videoId: videoId(selectedVideo), timeSeconds: playbackTime, label: `${videoTitle(selectedVideo)} · ${formatTime(playbackTime)}`,
+      });
+      if (bookmark) setStatusMessage(`Bookmark added at ${formatTime(playbackTime)}.`);
+    } catch (error) {
+      try { managers?.telemetry?.capture(error, { source: "add bookmark" }); } catch { /* No-op. */ }
+    }
   };
 
   const addChapter = () => {
-    if (!selectedVideo || !managers) return;
-    const title = globalThis.prompt?.("Chapter title")?.trim();
-    if (!title) return;
-    managers.chapterManager.addChapter(videoId(selectedVideo), { title, startTime: playbackTime });
-    setChapters([...managers.chapterManager.getChapters(videoId(selectedVideo))]);
+    try {
+      if (!selectedVideo || !managers) return;
+      const title = globalThis.prompt?.("Chapter title")?.trim();
+      if (!title) return;
+      managers.chapterManager.addChapter(videoId(selectedVideo), { title, startTime: playbackTime });
+      setChapters([...managers.chapterManager.getChapters(videoId(selectedVideo))]);
+    } catch (error) {
+      try { managers?.telemetry?.capture(error, { source: "add chapter" }); } catch { /* No-op. */ }
+    }
   };
 
   const changePreference = (key, value) => {
@@ -384,8 +412,12 @@ function AppContents({ videos: suppliedVideos }) {
   };
 
   const startTimer = () => {
-    const minutes = Number(timerMinutes);
-    if (Number.isFinite(minutes) && minutes > 0) managers?.sleepTimer?.startMinutes(minutes);
+    try {
+      const minutes = Number(timerMinutes);
+      if (Number.isFinite(minutes) && minutes > 0) managers?.sleepTimer?.startMinutes(minutes);
+    } catch (error) {
+      try { managers?.telemetry?.capture(error, { source: "sleep timer" }); } catch { /* No-op. */ }
+    }
   };
 
   const activeCategory = CATEGORIES.find((item) => item.id === category)?.label ?? "All";
