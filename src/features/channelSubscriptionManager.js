@@ -72,8 +72,16 @@ function normalizeLimit(value) {
 function normalizeSort(value) {
   try {
     const sort = normalizeText(value, 32).toLowerCase();
-    return ["subscribed-asc", "subscribed-desc", "name-asc", "name-desc", "category-asc", "category-desc", "subscribers-asc", "subscribers-desc"].includes(sort)
-      ? sort : "subscribed-desc";
+    return [
+      "subscribed-asc",
+      "subscribed-desc",
+      "name-asc",
+      "name-desc",
+      "category-asc",
+      "category-desc",
+      "subscribers-asc",
+      "subscribers-desc",
+    ].includes(sort) ? sort : "subscribed-desc";
   } catch { return "subscribed-desc"; }
 }
 
@@ -130,7 +138,9 @@ export class ChannelSubscriptionManager {
       if (serialized == null) serialized = memoryStorage.get(this.storageKey) ?? null;
       if (typeof serialized !== "string" || !serialized) return false;
       const parsed = JSON.parse(serialized);
-      const channels = Array.isArray(parsed) ? parsed : (isRecord(parsed) && Array.isArray(parsed.channels) ? parsed.channels : null);
+      const channels = Array.isArray(parsed)
+        ? parsed
+        : (isRecord(parsed) && Array.isArray(parsed.channels) ? parsed.channels : null);
       if (!channels) return false;
       this._channels = this._normalizeCollection(channels);
       return true;
@@ -170,7 +180,13 @@ export class ChannelSubscriptionManager {
 
   _notify(type, channel = null, details = {}) {
     try {
-      const event = Object.freeze({ type, channel, channels: this.getSubscriptions(), count: this._channels.size, ...details });
+      const event = Object.freeze({
+        type,
+        channel,
+        channels: this.getSubscriptions(),
+        count: this._channels.size,
+        ...details,
+      });
       try { this.onChange?.(event, this); } catch (error) { this._reportError(error); }
       for (const listener of [...this._listeners]) {
         try { listener(event, this); } catch (error) { this._reportError(error); }
@@ -230,14 +246,21 @@ export class ChannelSubscriptionManager {
 
   removeSubscription(channelOrId) { return this.unsubscribe(channelOrId); }
 
+  /**
+   * Toggle subscription state for a channel.
+   * Returns the subscribed channel object when subscribed, or null when unsubscribed.
+   */
   toggleSubscription(input, options = {}) {
     try {
-      if (this.isDestroyed) return false;
+      if (this.isDestroyed) return null;
       const id = normalizeId(input);
-      if (!id) return false;
-      if (this._channels.has(id)) return this.unsubscribe(id) ? false : this._channels.get(id) ?? false;
-      return this.subscribe(input, options) ?? false;
-    } catch (error) { this._reportError(error); return false; }
+      if (!id) return null;
+      if (this._channels.has(id)) {
+        const removed = this.unsubscribe(id);
+        return removed ? null : (this._channels.get(id) ?? null);
+      }
+      return this.subscribe(input, options) ?? null;
+    } catch (error) { this._reportError(error); return null; }
   }
 
   toggle(input, options) { return this.toggleSubscription(input, options); }
@@ -273,12 +296,21 @@ export class ChannelSubscriptionManager {
       const settings = isRecord(options) ? options : {};
       let channels = Array.from(this._channels.values());
       const query = normalizeText(settings.query ?? settings.search, 1024).toLocaleLowerCase();
-      if (query) channels = channels.filter((channel) => [channel.id, channel.name, channel.handle, channel.category]
-        .some((value) => value.toLocaleLowerCase().includes(query)));
+      if (query) {
+        channels = channels.filter((channel) =>
+          [channel.id, channel.name, channel.handle, channel.category].some((value) =>
+            value.toLocaleLowerCase().includes(query),
+          ),
+        );
+      }
       const category = normalizeText(settings.category, 512).toLocaleLowerCase();
-      if (category) channels = channels.filter((channel) => channel.category.toLocaleLowerCase() === category);
+      if (category) {
+        channels = channels.filter((channel) => channel.category.toLocaleLowerCase() === category);
+      }
       const notifyMode = normalizeNotifyMode(settings.notifyMode, "");
-      if (NOTIFY_MODES.includes(notifyMode)) channels = channels.filter((channel) => channel.notifyMode === notifyMode);
+      if (NOTIFY_MODES.includes(notifyMode)) {
+        channels = channels.filter((channel) => channel.notifyMode === notifyMode);
+      }
       const sort = normalizeSort(settings.sort);
       channels.sort((left, right) => {
         switch (sort) {
@@ -321,7 +353,9 @@ export class ChannelSubscriptionManager {
       const settings = isRecord(options) ? options : {};
       let parsed = input;
       if (typeof input === "string") parsed = JSON.parse(input);
-      const incoming = Array.isArray(parsed) ? parsed : (isRecord(parsed) && Array.isArray(parsed.channels) ? parsed.channels : null);
+      const incoming = Array.isArray(parsed)
+        ? parsed
+        : (isRecord(parsed) && Array.isArray(parsed.channels) ? parsed.channels : null);
       if (!incoming) return false;
       const next = settings.replace === false ? new Map(this._channels) : new Map();
       for (const candidate of incoming) {
