@@ -380,7 +380,7 @@ export class VolumeAudioMixer {
       try { serialized = this.storage?.getItem(this.storageKey) ?? null; }
       catch (error) { this._reportError(error); }
       if (typeof serialized !== "string" || !serialized) serialized = memoryStorage.get(this.storageKey) ?? null;
-      if (typeof serialized !== "string' || !serialized) return null;
+      if (typeof serialized !== "string" || !serialized) return null;
       const parsed = JSON.parse(serialized);
       return isRecord(parsed) ? parsed : null;
     } catch (error) {
